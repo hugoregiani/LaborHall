@@ -15,6 +15,8 @@ mensais de folha e mostra:
 4. Os cards (Head count, Horas Extras, Compra de Folgas, Bônus, Custo total) abrem cada indicador.
 
 - **Local**: um clique mostra só aquele local; **Ctrl + clique** (⌘ no Mac) soma locais.
+- **US$ / Horas**: em Horas Extras, o gráfico mensal e o ranking por colaborador têm uma chave para ver em US$ ou em
+  horas (em Compra de Folgas, US$ ou dias). O Excel do ranking traz a lista completa, com US$, horas e US$ por hora.
 - **Exportar HTML** gera uma cópia do app já com a base atualizada embutida — quem abrir vê tudo sem carregar nada.
 - **Exportar .json / Importar .json** levam só a base de um navegador para outro (meses iguais são atualizados).
 

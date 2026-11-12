@@ -223,6 +223,10 @@ input,select,textarea,button{font-family:var(--fs)}
 @media(max-width:1180px){.s3{grid-column:span 6}.s4,.s5{grid-column:span 6}.s7,.s8{grid-column:span 12}}
 @media(max-width:980px){.ana-grid>.ana-card{grid-column:span 12 !important}}
 .ana-card-title{display:flex;align-items:center;gap:10px;margin:0 0 16px;font-size:var(--t-2xs);font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.08em;line-height:1.3}
+.act-r{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
+.act-r .ana-xls{margin-left:0}
+.fc-seg.sm{padding:2px}
+.fc-seg.sm button{padding:4px 12px;font-size:10.5px;letter-spacing:.02em;text-transform:none}
 .ana-card-title small{font-size:10px;font-weight:600;color:var(--ink-4);letter-spacing:.06em}
 .ana-hint{font-size:var(--t-2xs);color:var(--ink-3);margin-top:12px;line-height:1.55;padding-top:10px;border-top:1px solid var(--hair)}
 .ana-hint b{color:var(--ink-1)}
@@ -793,12 +797,12 @@ var CATC = {};
 var S = {
   view:'home', hist:[],
   f:{from:'', to:'', locais:[], funcoes:[], admDe:'', admAte:'', tf:'all', sit:[], q:''},
-  ui:{fnOpen:false, fnQ:'', fbOpen:false, sort:{}, evF:'all', evQ:'', hcQ:''},
+  ui:{fnOpen:false, fnQ:'', fbOpen:false, sort:{}, evF:'all', evQ:'', hcQ:'', unit:{}},
   pending:[], busy:false, persist:true, modal:null, toast:''
 };
 var UI_KEY = 'laborhall.cmt.ui.v1';
-function saveUI(){ try{ localStorage.setItem(UI_KEY, JSON.stringify({view:S.view, f:S.f})); }catch(e){} }
-function loadUI(){ try{ var o = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (o){ if (o.f) Object.assign(S.f, o.f); if (o.view) S.view = o.view; } }catch(e){} }
+function saveUI(){ try{ localStorage.setItem(UI_KEY, JSON.stringify({view:S.view, f:S.f, unit:S.ui.unit})); }catch(e){} }
+function loadUI(){ try{ var o = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (o){ if (o.f) Object.assign(S.f, o.f); if (o.view) S.view = o.view; if (o.unit) S.ui.unit = o.unit; } }catch(e){} }
 
 function catOf(ev){
   if (CATC[ev] !== undefined) return CATC[ev];
@@ -907,8 +911,8 @@ function hcData(){
   return {ks:ks, byM:byM, ref:ref, snap:snap, adm:adm, desl:desl};
 }
 function costData(cat){
-  var ks = PK(), C = CATS[cat], r = {ks:ks, tot:0, all:0, byM:{}, byEv:{}, byLoc:{}, byFn:{}, byEmp:{}, byTipo:{}, qty:0, qtyByM:{}};
-  ks.forEach(function(k){ r.byM[k] = {tot:0, ev:{}}; r.qtyByM[k] = 0; });
+  var ks = PK(), C = CATS[cat], r = {ks:ks, tot:0, all:0, byM:{}, byEv:{}, byLoc:{}, byFn:{}, byEmp:{}, byTipo:{}, qty:0, qtyByM:{}, qByM:{}, qByEv:{}};
+  ks.forEach(function(k){ r.byM[k] = {tot:0, ev:{}}; r.qtyByM[k] = 0; r.qByM[k] = {}; });
   ks.forEach(function(k){
     var mo = MONTHS[k];
     for (var i = 0; i < mo.vals.length; i++){
@@ -923,7 +927,8 @@ function costData(cat){
       r.byFn[e.fn] = (r.byFn[e.fn] || 0) + u;
       var E = r.byEmp[ch] || (r.byEmp[ch] = {ch:ch, tot:0, m:{}, q:0}); E.tot += u; E.m[k] = (E.m[k] || 0) + u;
       var t = (mo.ev[ev] && mo.ev[ev].t) || 'OUTROS'; r.byTipo[t] = (r.byTipo[t] || 0) + u;
-      if (C.qty && C.qty.re.test(normEv(ev))){ r.qty += v[4] || 0; r.qtyByM[k] += v[4] || 0; E.q += v[4] || 0; }
+      if (C.qty && C.qty.re.test(normEv(ev))){ var qv = v[4] || 0; r.qty += qv; r.qtyByM[k] += qv; E.q += qv; E.uq = (E.uq || 0) + u;
+        r.qByM[k][ev] = (r.qByM[k][ev] || 0) + qv; r.qByEv[ev] = (r.qByEv[ev] || 0) + qv; }
     }
   });
   return r;
@@ -970,8 +975,15 @@ var XP = {}; // exportações Excel registradas por card
 function xlsBtn(key, fn){ XP[key] = fn; return '<button class="ana-xls" data-act="xls" data-k="' + key + '">⬇ Excel</button>'; }
 function card(span, ttl, body, opt){
   opt = opt || {};
+  var right = (opt.tools || '') + (opt.xls ? xlsBtn(opt.xls[0], opt.xls[1]) : '');
   return '<div class="ana-card ' + span + '"><div class="ana-card-title"><span>' + ttl + '</span>' + (opt.small ? '<small>' + opt.small + '</small>' : '') +
-    (opt.xls ? xlsBtn(opt.xls[0], opt.xls[1]) : '') + '</div>' + body + (opt.hint ? '<div class="ana-hint">' + opt.hint + '</div>' : '') + '</div>';
+    (right ? '<span class="act-r">' + right + '</span>' : '') + '</div>' + body + (opt.hint ? '<div class="ana-hint">' + opt.hint + '</div>' : '') + '</div>';
+}
+/* chave US$ × quantidade (horas nas horas extras, dias nas folgas) */
+function unitSeg(key, C){
+  var u = S.ui.unit[key] === 'q' ? 'q' : 'usd', ql = C.qty.unit === 'h' ? 'Horas' : 'Dias';
+  return '<span class="fc-seg sm" role="group" aria-label="Ver em">' + [['usd', 'US$'], ['q', ql]].map(function(x){
+    return '<button type="button" data-act="unit" data-k="' + key + ':' + x[0] + '" class="' + (u === x[0] ? 'on' : '') + '" aria-pressed="' + (u === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</span>';
 }
 function kpi(val, lbl, sub, cls){
   return '<div class="kpi-tile ' + (cls || '') + '"><div class="kpi-val">' + val + '</div><div class="kpi-lbl">' + lbl + '</div>' + (sub ? '<div class="kpi-sub">' + sub + '</div>' : '') + '</div>';
@@ -1273,21 +1285,40 @@ function pageCost(cat){
 
   var evs = Object.keys(d.byEv), col = evColorMap(cat, evs.concat(C.def));
   var evSorted = evs.slice().sort(function(a, b){ return Math.abs(d.byEv[b]) - Math.abs(d.byEv[a]); });
-  var cols = withGaps(ks, function(k){ return {k:k, label:mLbl(k), total:d.byM[k].tot, parts:evSorted.map(function(ev){ return {v:d.byM[k].ev[ev] || 0, c:col[ev], n:ev}; })}; });
+  var qn = C.qty ? (C.qty.unit === 'h' ? 'horas' : 'dias') : '', fQ = function(v){ return NF0.format(v) + ' ' + C.qty.unit; };
+  var uM = !!C.qty && S.ui.unit[cat + '-m'] === 'q';
+  var qEvs = uM ? Object.keys(d.qByEv).sort(function(a, b){ return d.qByEv[b] - d.qByEv[a]; }) : [];
+  var cols = uM ? withGaps(ks, function(k){ return {k:k, label:mLbl(k), total:d.qtyByM[k], parts:qEvs.map(function(ev){ return {v:d.qByM[k][ev] || 0, c:col[ev], n:ev}; })}; })
+               : withGaps(ks, function(k){ return {k:k, label:mLbl(k), total:d.byM[k].tot, parts:evSorted.map(function(ev){ return {v:d.byM[k].ev[ev] || 0, c:col[ev], n:ev}; })}; });
   var sug = suggestions(cat);
   h += '<div class="ana-grid">' +
-    card('s8', C.label + ' por mês', vbars(cols, {act:'month', on:S.f.from === S.f.to ? S.f.from : null, legend:evSorted.map(function(ev){ return {c:col[ev], n:ev}; })}),
-      {xls:['c-m', function(){ return {name:cat + '_por_mes', rows:[['Evento'].concat(ks.map(mLbl)).concat(['Total'])].concat(evSorted.map(function(ev){ return [ev].concat(ks.map(function(k){ return r2(d.byM[k].ev[ev] || 0); })).concat([r2(d.byEv[ev])]); })).concat([['Total'].concat(ks.map(function(k){ return r2(d.byM[k].tot); })).concat([r2(d.tot)])])}; }],
-       hint:'Barras acima da linha somam custos; abaixo, reversões (valores negativos). Clique num mês para ver só ele.'}) +
+    card('s8', C.label + ' por mês' + (uM ? ' · em ' + qn : ''), vbars(cols, uM ? {act:'month', on:S.f.from === S.f.to ? S.f.from : null, fmt:fQ, full:fQ, legend:qEvs.map(function(ev){ return {c:col[ev], n:ev}; })}
+                                                                  : {act:'month', on:S.f.from === S.f.to ? S.f.from : null, legend:evSorted.map(function(ev){ return {c:col[ev], n:ev}; })}),
+      {tools:C.qty ? unitSeg(cat + '-m', C) : '',
+       xls:['c-m', uM ? function(){ return {name:cat + '_por_mes_' + qn, rows:[['Evento (' + qn + ')'].concat(ks.map(mLbl)).concat(['Total'])].concat(qEvs.map(function(ev){ return [ev].concat(ks.map(function(k){ return r2(d.qByM[k][ev] || 0); })).concat([r2(d.qByEv[ev])]); })).concat([['Total'].concat(ks.map(function(k){ return r2(d.qtyByM[k]); })).concat([r2(d.qty)])])}; }
+                      : function(){ return {name:cat + '_por_mes_usd', rows:[['Evento (US$)'].concat(ks.map(mLbl)).concat(['Total'])].concat(evSorted.map(function(ev){ return [ev].concat(ks.map(function(k){ return r2(d.byM[k].ev[ev] || 0); })).concat([r2(d.byEv[ev])]); })).concat([['Total'].concat(ks.map(function(k){ return r2(d.byM[k].tot); })).concat([r2(d.tot)])])}; }],
+       hint:uM ? 'Quantidade pela coluna REFERÊNCIA dos eventos com ' + qn + ' (' + esc(qEvs.join(', ')) + '); DSR e médias não trazem quantidade. Clique num mês para ver só ele.'
+               : 'Barras acima da linha somam custos; abaixo, reversões (valores negativos). Clique num mês para ver só ele.'}) +
     card('s4', 'Por evento', hbars(evSorted.map(function(ev){ return {id:ev, label:ev, v:d.byEv[ev], c:col[ev], sub:pctOf(d.byEv, ev, d.tot)}; }), {fmt:fUS, stack:true}),
       {hint:sug.length ? 'Fora deste indicador, com nome parecido: ' + sug.slice(0, 4).map(function(x){ return '<b>' + esc(x.name) + '</b> (' + esc(fUSk(x.tot)) + ' em todos os meses)'; }).join(', ') + (sug.length > 4 ? ' e mais ' + (sug.length - 4) : '') + '. <a href="#" data-act="go" data-k="eventos">Gerenciar eventos</a>.' : 'Eventos conforme a lista do indicador. <a href="#" data-act="go" data-k="eventos">Gerenciar eventos</a>.'}) +
     card('s4', 'Por local', hbars(M.locs.filter(function(l){ return d.byLoc[l]; }).map(function(l){ return {id:l, label:locName(l), v:d.byLoc[l], c:locCol(l, M.locs.indexOf(l)), on:S.f.locais.indexOf(l) >= 0, sub:pctOf(d.byLoc, l, d.tot)}; }), {act:'loc', stack:true}), {hint:'Clique num local para filtrar.'}) +
     card('s8', 'Por função', hbars(Object.keys(d.byFn).sort(function(a, b){ return d.byFn[b] - d.byFn[a]; }).map(function(fn){ return {id:fn, label:title(fn), v:d.byFn[fn], c:'#43494E', on:S.f.funcoes.indexOf(fn) >= 0, sub:pctOf(d.byFn, fn, d.tot)}; }), {act:'fn', wide:true}),
       {xls:['c-fn', function(){ return {name:cat + '_por_funcao', rows:[['Função', 'US$']].concat(Object.keys(d.byFn).map(function(fn){ return [title(fn), r2(d.byFn[fn])]; }))}; }], hint:'Clique numa função para filtrar.'}) +
     '</div>';
-  var top = Object.keys(d.byEmp).map(function(ch){ return d.byEmp[ch]; }).sort(function(a, b){ return b.tot - a.tot; }).slice(0, 15);
-  h += '<div class="ana-grid">' + card('s12', 'Maiores valores por colaborador', hbars(top.map(function(x){ var e = M.emp[x.ch].byM[ref] || M.emp[x.ch].last; return {id:x.ch, label:title(e.n), tag:title(e.fn) + ' · ' + locName(locKey(e.f)), v:x.tot, c:'#961B24', sub:C.qty && x.q ? NF0.format(x.q) + ' ' + C.qty.unit : ''}; }), {act:'emp', wide:true}),
-    {small:'top 15', hint:'Clique numa pessoa para ver o detalhe mês a mês.'}) + '</div>';
+  var uR = !!C.qty && S.ui.unit[cat + '-r'] === 'q';
+  var empOf = function(ch){ return M.emp[ch].byM[ref] || M.emp[ch].last; };
+  var rk = Object.keys(d.byEmp).map(function(ch){ return d.byEmp[ch]; })
+    .filter(function(x){ return uR ? x.q > 0 : Math.abs(x.tot) > 0.005; })
+    .sort(function(a, b){ return uR ? (b.q - a.q) || (b.tot - a.tot) : b.tot - a.tot; });
+  h += '<div class="ana-grid">' + card('s12', 'Ranking por colaborador', hbars(rk.slice(0, 15).map(function(x){ var e = empOf(x.ch);
+      return {id:x.ch, label:title(e.n), tag:title(e.fn) + ' · ' + locName(locKey(e.f)), v:uR ? x.q : x.tot, c:uR ? '#43494E' : '#961B24',
+              sub:uR ? fUS(x.tot) : (C.qty && x.q ? fQ(x.q) : '')}; }), {act:'emp', wide:true, fmt:uR ? fQ : fUS}),
+    {small:'top 15 · por ' + (uR ? qn : 'US$'), tools:C.qty ? unitSeg(cat + '-r', C) : '',
+     xls:['c-r', function(){
+       var qh = C.qty ? [C.qty.unit === 'h' ? 'Horas' : 'Dias', 'US$ por ' + (C.qty.unit === 'h' ? 'hora' : 'dia') + ' (eventos com ' + qn + ')'] : [];
+       return {name:'ranking_' + cat + '_por_' + (uR ? qn : 'usd'), rows:[['Posição', 'Chapa', 'Colaborador', 'Função', 'Local', 'US$'].concat(qh)].concat(rk.map(function(x, i){ var e = empOf(x.ch);
+         return [i + 1, x.ch, title(e.n), title(e.fn), locName(locKey(e.f)), r2(x.tot)].concat(C.qty ? [r2(x.q), x.q ? r2((x.uq || 0) / x.q) : ''] : []); }))}; }],
+     hint:'Clique numa pessoa para ver o detalhe mês a mês. O Excel traz o ranking completo (' + rk.length + ' pessoas), na ordem escolhida' + (C.qty ? ', com US$, ' + qn + ' e US$ por ' + (C.qty.unit === 'h' ? 'hora' : 'dia') : '') + '.'}) + '</div>';
   // tabela colaborador × mês
   var rows = Object.keys(d.byEmp).map(function(ch){ return d.byEmp[ch]; });
   var cols2 = [
@@ -1497,6 +1528,7 @@ document.addEventListener('click', function(ev){
     case 'exp-json': exportJSON(); break;
     case 'exp-xlsx': exportConsolidado(); break;
     case 'evf': S.ui.evF = k; render(true); break;
+    case 'unit': var uk = k.split(':'); S.ui.unit[uk[0]] = uk[1]; render(true); break;
     case 'evreset': if (confirm('Voltar todos os eventos para a lista padrão?')){ SETTINGS.over = {}; saveSettings(); rebuild(); render(true); } break;
   }
 });
